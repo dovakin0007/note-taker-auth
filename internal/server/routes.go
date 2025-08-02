@@ -3,6 +3,7 @@ package server
 import (
 	"Auth/internal/services"
 	"Auth/internal/utils"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
@@ -64,7 +65,7 @@ func (s *Server) Register(c *gin.Context) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
 		return
 	}
-	user, err := services.RegisterUser(s.db, input.Username, input.Password, input.Email)
+	user, err := services.RegisterUser(s.db, input.Username, input.Email, input.Password)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
@@ -98,7 +99,7 @@ func (s *Server) AuthenticateUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed"})
 		return
 	}
-
+	fmt.Println("Authenticated user:", user)
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return

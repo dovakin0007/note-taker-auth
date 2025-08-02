@@ -6,6 +6,7 @@ import (
 	"Auth/internal/utils"
 	"context"
 	"encoding/json"
+	"log"
 
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ func RegisterUser(db database.Service, username, email, password string) (*model
 	if err != nil {
 		return nil, err
 	}
-
+	log.Printf("Registering user: %s with email: %s, with password: %s", username, email, password)
 	user := models.User{
 		Username: username,
 		Email:    email,
@@ -27,16 +28,15 @@ func RegisterUser(db database.Service, username, email, password string) (*model
 }
 
 func AuthenticateUser(db database.Service, email, password string) (*models.User, error) {
-	var user models.User
-
-	if _, err := db.GetFirstUserByEmail(email); err != nil {
+	val, err := db.GetFirstUserByEmail(email)
+	if err != nil {
 		return nil, err
 	}
 
-	if !utils.CheckPasswordHash(password, user.Password) {
+	if !utils.CheckPasswordHash(password, val.Password) {
 		return nil, nil
 	}
-	return &user, nil
+	return val, nil
 }
 
 func HandleGoogleOauthLogin(conf *oauth2.Config, token string) string {
