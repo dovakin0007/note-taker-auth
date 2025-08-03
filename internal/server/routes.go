@@ -174,6 +174,7 @@ func (s *Server) Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
+// TODO: Test Refresh Token see whether it works as expected
 func (s *Server) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil {
