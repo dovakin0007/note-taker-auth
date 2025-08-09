@@ -127,21 +127,21 @@ func (s *Server) AuthenticateUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "JWT refresh token creation failed"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Authentication successful", "token": appToken, "user": user})
-	c.SetCookie("token", appToken, 3600, "/", "localhost", true, true)
-	c.SetCookie("refresh_token", refreshToken, 60*60*24*30, "/", "localhost", true, true)
+	c.SetSameSite(http.SameSiteNoneMode)
+	c.SetCookie("token", appToken, 3600, "/", "localhost", false, false)
+	c.SetCookie("refresh_token", refreshToken, 60*60*24*30, "/", "localhost", false, false)
 	delete(limiters, ip)
+	c.JSON(http.StatusOK, gin.H{"message": "Authentication successful", "token": appToken, "user": user})
+
 }
 
 func (s *Server) OauthLogin(c *gin.Context) {
-	token := services.HandleGoogleOauthLogin(s.authconf, c.Query("token"))
-	println("Redirecting to Google OAuth URL:", token)
+	token := services.HandleGoogleOauthLogin(s.authconf, c)
 	c.Redirect(http.StatusTemporaryRedirect, token)
 }
 
 func (s *Server) OauthCallback(c *gin.Context) {
-	user, err := services.HandleGoogleCallback(s.db, s.authconf, c.Query("code"))
+	user, err := services.HandleGoogleCallback(s.db, s.authconf, c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to handle OAuth callback"})
 		return

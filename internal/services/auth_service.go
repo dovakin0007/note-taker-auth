@@ -5,9 +5,15 @@ import (
 	"Auth/internal/models"
 	"Auth/internal/utils"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -39,20 +45,54 @@ func AuthenticateUser(db database.Service, email, password string) (*models.User
 	return val, nil
 }
 
-func HandleGoogleOauthLogin(conf *oauth2.Config, token string) string {
-	_ = token // This is just a placeholder to show where the token would be used.
+func HandleGoogleOauthLogin(conf *oauth2.Config, c *gin.Context) string {
+	state := generateStateOauthCookie(c)
 	// Handle the exchange code to initiate a transport.
-	tok := conf.AuthCodeURL("random-state-string", oauth2.AccessTypeOffline)
+	tok := conf.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	fmt.Println("Redirecting to Google OAuth URL:", tok)
 	return tok
 }
 
-func HandleGoogleCallback(db database.Service, conf *oauth2.Config, code string) (*models.User, error) {
-	token, err := conf.Exchange(context.Background(), code)
+func generateStateOauthCookie(c *gin.Context) string {
+	var expiration = (time.Now().Add(30 * time.Minute)).Second()
+	b := make([]byte, 16)
+
+	rand.Read(b)
+
+	state := base64.URLEncoding.EncodeToString(b)
+	c.SetCookie("oauthstate", state, int(expiration), "/", "localhost", false, true)
+
+	return state
+}
+
+func HandleGoogleCallback(db database.Service, conf *oauth2.Config, c *gin.Context) (*models.User, error) {
+	oauthState, _ := c.Cookie("oauthstate")
+	if c.Request.FormValue("state") != oauthState {
+		log.Println("invalid oauth google state")
+		c.Redirect(http.StatusTemporaryRedirect, "/")
+
+	}
+	data, err := getUserDataFromGoogle(db, conf, c, c.Request.FormValue("code"))
 	if err != nil {
+		log.Println("Error getting user data from Google:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user data from Google"})
 		return nil, err
 	}
+	return data, nil
+
+}
+
+func getUserDataFromGoogle(db database.Service, conf *oauth2.Config, c *gin.Context, code string) (*models.User, error) {
+	// Use code to get token and get user info from Google.
+	log.Println("worked")
+	token, err := conf.Exchange(context.Background(), code)
+	if err != nil {
+		return nil, fmt.Errorf("code exchange wrong: %s", err.Error())
+	}
 	client := conf.Client(context.Background(), token)
+	log.Println("Google OAuth token:", token.AccessToken)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
+
 	if err != nil {
 		return nil, err
 	}
@@ -83,5 +123,4 @@ func HandleGoogleCallback(db database.Service, conf *oauth2.Config, code string)
 		return nil, err
 	}
 	return result, nil
-
 }
